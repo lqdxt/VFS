@@ -1,0 +1,13 @@
+{
+  "name": "localhost-vfs",
+  "version": "1.0.0",
+  "description": "A browser-based virtual file system with editor, preview, import and export",
+  "private": true,
+  "scripts": {
+    "build:icons": "node build-icons.mjs",
+    "start": "npx serve ."
+  },
+  "devDependencies": {
+    "@iconify-json/vscode-icons": "^1.2.100"
+  }
+}

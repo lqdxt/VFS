@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Localhost VFS</title>
+<style>
+:root{--bg:#0f1729;--deep:#070b17;--line:#1e293b;--text:#e2e8f0;--mut:#8b98b0;--blue:#2563eb;--sel:#172554;--green:#34d399;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;color:#4f8df7;font-weight:700;font-size:19px;white-space:nowrap}
+.pill{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;background:#0d2a2a;border:1px solid #14532d;color:var(--green);font-size:13px;font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.run{display:flex;align-items:center;gap:8px;background:var(--blue);padding:10px 18px;border-radius:10px;font-weight:700;box-shadow:0 6px 18px rgba(37,99,235,.4);margin-left:auto}
+.tabs{display:flex;gap:2px;padding:4px;border:1px solid var(--line);border-radius:10px;width:100%}
+.tabs button{flex:1;padding:8px 14px;border-radius:7px;color:var(--mut);font-weight:600}
+.tabs button.on{background:var(--blue);color:#fff}
+main{flex:1;min-height:0;position:relative}
+.panel{display:none;position:absolute;inset:0;flex-direction:column}
+body[data-tab=files] #files,body[data-tab=editor] #editor,body[data-tab=preview] #preview{display:flex}
+.bar{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.bar b{flex:1;letter-spacing:.06em;font-size:14px;display:flex;align-items:center;gap:10px}
+.ib{padding:8px;border-radius:8px;color:var(--mut);display:grid;place-items:center}
+.ib:hover{background:var(--line);color:var(--text)}
+.search{position:relative;padding:12px 16px;border-bottom:1px solid var(--line)}
+.search svg{position:absolute;left:30px;top:50%;transform:translateY(-50%);color:var(--mut);width:18px}
+.search input{width:100%;background:var(--deep);border:1px solid var(--line);border-radius:10px;padding:11px 12px 11px 44px;color:var(--text);font:inherit;outline:0}
+.search input:focus,.box input:focus{border-color:var(--blue)}
+#tree{flex:1;overflow:auto;padding:8px}
+.row{display:flex;align-items:center;gap:10px;padding:10px 8px 10px calc(8px + var(--l)*18px);border-radius:8px;cursor:pointer;min-height:44px}
+.row:hover{background:#131d33}
+.row.sel{background:var(--sel);color:#7db3ff;font-weight:600}
+.row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .more{opacity:.5;padding:6px}
+.chev{width:16px;height:16px;color:var(--mut);transition:.15s}.chev.o{transform:rotate(90deg)}
+.sp{width:16px;flex:none}
+.ch{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;font-size:10px;font-weight:800;color:#111;flex:none}
+.entry{font-size:11px;font-weight:700;color:#fcd34d;background:#3b3417;border:1px solid #6b5a1a;border-radius:6px;padding:1px 7px}
+.empty{color:var(--mut);text-align:center;padding:40px 16px}
+footer{display:flex;align-items:center;gap:10px;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));background:var(--deep);border-top:1px solid var(--line);color:var(--mut)}
+footer .t{flex:1;color:var(--text)}footer .star{color:#fbbf24}
+#ta{flex:1;width:100%;background:var(--deep);color:var(--text);border:0;outline:0;resize:none;padding:16px;font:13.5px/1.6 ui-monospace,Menlo,Consolas,monospace;white-space:pre;tab-size:2}
+.saved{font-size:12px;color:var(--green)}
+.media{flex:1;display:grid;place-items:center;padding:16px;overflow:auto}.media img{max-width:100%}
+.addr{flex:1;background:var(--deep);border:1px solid var(--line);border-radius:99px;padding:8px 14px;color:var(--mut);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#pv{flex:1;width:100%;border:0;background:#fff}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;z-index:9}
+#modal.on{display:flex}
+.box{background:#111a2e;border:1px solid var(--line);width:100%;max-width:440px;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+@media(min-width:560px){#modal{align-items:center}.box{border-radius:16px}}
+.box h3{margin:0 0 12px;font-size:16px}
+.box input{width:100%;background:var(--deep);border:1px solid var(--line);border-radius:10px;padding:12px;color:var(--text);font:inherit;outline:0;margin-bottom:12px}
+.box .btns{display:flex;gap:8px;justify-content:flex-end}
+.btn{padding:10px 16px;border-radius:10px;background:var(--line);font-weight:600}.btn.p{background:var(--blue)}.btn.d{background:#b91c1c}
+.act{display:flex;align-items:center;gap:12px;width:100%;padding:13px 10px;border-radius:10px;text-align:left}.act:hover{background:var(--line)}.act.d{color:#f87171}
+#toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#1e293b;padding:10px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:.2s;z-index:10}#toast.on{opacity:1}
+.drag #tree{outline:2px dashed var(--blue);outline-offset:-6px}
+</style>
+</head>
+<body data-tab="files">
+<header>
+  <div class="brand"><svg class="i" style="width:28px;height:28px" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01"/></svg>Localhost VFS</div>
+  <div class="pill"><span class="dot"></span>VFS Localhost Server</div>
+  <button class="run" id="run"><svg class="i" viewBox="0 0 24 24" style="fill:currentColor"><path d="M6 4l14 8-14 8z"/></svg>Run App</button>
+  <div class="tabs" id="tabs"><button data-t="files" class="on">Files</button><button data-t="editor">Editor</button><button data-t="preview">Preview</button></div>
+</header>
+<main>
+  <section class="panel" id="files">
+    <div class="bar"><b><svg class="i" viewBox="0 0 24 24"><path d="M3 4h6v6H3zM13 4h8v4h-8zM13 12h8v8h-8zM3 14h6v6H3z"/></svg>EXPLORER</b>
+      <button class="ib" id="bNew" title="New file"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="ib" id="bDir" title="New folder"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 10v6M9 13h6"/></svg></button>
+      <button class="ib" id="bUp" title="Import"><svg class="i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></button>
+      <button class="ib" id="bExp" title="Export"><svg class="i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+      <button class="ib" id="bCol" title="Collapse all"><svg class="i" viewBox="0 0 24 24"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg></button></div>
+    <div class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="q" placeholder="Search files..." autocomplete="off"></div>
+    <div id="tree"></div>
+  </section>
+  <section class="panel" id="editor">
+    <div class="bar"><b id="eName" style="letter-spacing:0;font-weight:600"></b><span class="saved" id="saved"></span></div>
+    <div id="eBody" style="flex:1;display:flex;min-height:0"></div>
+  </section>
+  <section class="panel" id="preview">
+    <div class="bar"><button class="ib" id="pBack" title="Back"><svg class="i" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <button class="ib" id="pReload" title="Reload"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button>
+      <div class="addr" id="addr">localhost</div></div>
+    <iframe id="pv" sandbox="allow-scripts allow-forms allow-modals" srcdoc="<body style='font:16px system-ui;background:#0f1729;color:#8b98b0;display:grid;place-items:center;height:100vh;margin:0'>Press Run App to start the server"></iframe>
+  </section>
+</main>
+<footer><svg class="i star" viewBox="0 0 24 24" style="fill:currentColor"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg><span class="t" id="fEntry"></span><span id="fCount"></span></footer>
+<input type="file" id="inA" accept=".zip,.tar,.gz,.tgz,.json" hidden><input type="file" id="inF" multiple hidden><input type="file" id="inD" webkitdirectory multiple hidden>
+<div id="modal"></div><div id="toast"></div>
+
+<script src="icons.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const SEED={entry:'index.html',folders:[],files:{
+'index.html':{c:`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>My VFS App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <img src="logo.svg" width="72" alt="logo">
+  <h1>Hello from the VFS</h1>
+  <p>Served from your virtual files.</p>
+  <button id="load">Load users.json</button>
+  <ul id="users"></ul>
+  <p><a href="pages/about.html">About page</a></p>
+  <script src="script.js"><\/script>
+</body>
+</html>`},
+'style.css':{c:`body{font-family:system-ui,sans-serif;max-width:520px;margin:40px auto;padding:0 16px;color:#1e293b}
+h1{color:#2563eb}
+button{background:#2563eb;color:#fff;border:0;padding:10px 16px;border-radius:8px;font-size:15px}
+li{margin:6px 0}`},
+'script.js':{c:`document.getElementById('load').onclick = async () => {
+  const res = await fetch('data/users.json');
+  const users = await res.json();
+  document.getElementById('users').innerHTML =
+    users.map(u => '<li>' + u.name + ' (' + u.role + ')</li>').join('');
+};`},
+'logo.svg':{c:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2563eb"/><path d="M20 22l12 20 12-20" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>`},
+'data/users.json':{c:`[
+  { "name": "Ada", "role": "Engineer" },
+  { "name": "Linus", "role": "Maintainer" },
+  { "name": "Grace", "role": "Admiral" }
+]`},
+'pages/about.html':{c:`<!DOCTYPE html>
+<html><head><link rel="stylesheet" href="../style.css"></head>
+<body><h1>About</h1><p>A second page, routed inside the VFS.</p><a href="../index.html">Back home</a></body></html>`}}};
+let S;try{S=JSON.parse(localStorage.getItem('vfs-v1'))}catch(e){}
+if(!S||!S.files)S=structuredClone(SEED);
+let cur=null,open=new Set(['data','pages']),hist=[],hi=-1,tm;
+const save=()=>{try{localStorage.setItem('vfs-v1',JSON.stringify(S))}catch(e){}};
+const ext=p=>(p.split('.').pop()||'').toLowerCase(),base=p=>p.split('/').pop(),dir=p=>p.includes('/')?p.slice(0,p.lastIndexOf('/')):'';
+const MIME={html:'text/html',css:'text/css',js:'text/javascript',json:'application/json',svg:'image/svg+xml',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',txt:'text/plain'};
+const mime=p=>MIME[ext(p)]||'application/octet-stream';
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(tm);tm=setTimeout(()=>t.classList.remove('on'),1800)}
+function folders(){const s=new Set(S.folders);Object.keys(S.files).forEach(p=>{let d=dir(p);while(d){s.add(d);d=dir(d)}});S.folders.forEach(f=>{let d=dir(f);while(d){s.add(d);d=dir(d)}});return[...s]}
+const uri=p=>{const f=S.files[p];return f.bin?f.c:`data:${mime(p)};base64,${btoa(unescape(encodeURIComponent(f.c)))}`};
+const resolve=(from,u)=>{u=u.split(/[?#]/)[0];const a=u[0]==='/'?[]:from.split('/').slice(0,-1);for(const s of u.split('/')){if(s==='..')a.pop();else if(s&&s!=='.')a.push(s)}return a.join('/')};
+
+// icons
+const SV=(d,c)=>`<svg class="i" style="color:${c}" viewBox="0 0 24 24">${d}</svg>`;
+function ficon(p,isDir,o){
+  if(window.VSICONS){const v=window.VSICONS(p,isDir,o);if(v)return v}
+  if(isDir)return SV(o?'<path d="M3 8V6a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1M3 8h18l-2 10a2 2 0 0 1-2 1.5H6A2 2 0 0 1 4 18z"/>':'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>','#fbbf24');
+  const e=ext(p),ch=(t,b)=>`<span class="ch" style="background:${b}">${t}</span>`;
+  if(e==='html'||e==='htm')return ch('5','#f97316');
+  if(e==='css')return ch('3','#3b82f6');
+  if(e==='js'||e==='mjs')return ch('JS','#facc15');
+  if(e==='json')return SV('<path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>','#34d399');
+  if(/^(svg|png|jpe?g|gif|webp)$/.test(e))return SV('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>','#c084fc');
+  return SV('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/>','#94a3b8');
+}
+
+// explorer
+function render(){
+  if(!S.files[S.entry])S.entry=S.files['index.html']?'index.html':Object.keys(S.files).find(p=>/\.html?$/.test(p))||'';
+  const q=$('#q').value.trim().toLowerCase(),paths=Object.keys(S.files).sort(),fl=folders().sort();
+  const m=p=>!q||base(p).toLowerCase().includes(q);
+  const vis=f=>!q||paths.some(p=>p.startsWith(f+'/')&&m(p));
+  const rec=(d,l)=>{let h='';
+    fl.filter(f=>dir(f)===d&&vis(f)).forEach(f=>{const o=q||open.has(f);
+      h+=`<div class="row" data-k="d" data-p="${esc(f)}" style="--l:${l}"><svg class="i chev ${o?'o':''}" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>${ficon(f,1,o)}<span class="nm">${esc(base(f))}</span><button class="ib more" data-m="1" aria-label="Actions"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div>`;
+      if(o)h+=rec(f,l+1)});
+    paths.filter(p=>dir(p)===d&&m(p)).forEach(p=>{
+      h+=`<div class="row ${p===cur?'sel':''}" data-k="f" data-p="${esc(p)}" style="--l:${l}"><span class="sp"></span>${ficon(p)}<span class="nm">${esc(base(p))}</span>${p===S.entry?'<span class="entry">ENTRY</span>':''}<button class="ib more" data-m="1" aria-label="Actions"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div>`});
+    return h};
+  $('#tree').innerHTML=rec('',0)||`<div class="empty">${q?'No matches':'No files yet. Tap + or import some.'}</div>`;
+  $('#fEntry').textContent=S.entry||'no entry';
+  $('#fCount').textContent=paths.length+' file'+(paths.length==1?'':'s');
+}
+$('#tree').onclick=e=>{
+  const r=e.target.closest('.row');if(!r)return;const p=r.dataset.p,d=r.dataset.k==='d';
+  if(e.target.closest('[data-m]'))return actions(p,d);
+  if(d){open.has(p)?open.delete(p):open.add(p);render()}else{cur=p;render();edit();tab('editor')}
+};
+$('#q').oninput=render;
+$('#bCol').onclick=()=>{open.clear();render()};
+
+// editor
+function edit(){
+  const f=S.files[cur];$('#eName').innerHTML=cur?ficon(cur)+' '+esc(cur):'';$('#saved').textContent='';
+  const b=$('#eBody');
+  if(!f){b.innerHTML='<div class="media empty">Select a file in Files to edit it.</div>';return}
+  if(f.bin){b.innerHTML=`<div class="media"><img src="${f.c}" alt=""></div>`;return}
+  b.innerHTML='<textarea id="ta" spellcheck="false" autocapitalize="off"></textarea>';
+  const ta=$('#ta');ta.value=f.c;
+  ta.oninput=()=>{f.c=ta.value;save();$('#saved').textContent='Saved'};
+  ta.onkeydown=e=>{if(e.key==='Tab'){e.preventDefault();ta.setRangeText('  ',ta.selectionStart,ta.selectionEnd,'end');ta.oninput()}};
+}
+
+// modals
+function modal(h){return new Promise(res=>{const m=$('#modal');m.innerHTML=`<div class="box">${h}</div>`;m.classList.add('on');
+  const x=v=>{m.classList.remove('on');res(v)};m.onclick=e=>{if(e.target===m)x(null)};
+  m.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>x(b.dataset.v));
+  const i=m.querySelector('input');if(i){i.focus();i.select();i.onkeydown=e=>{if(e.key==='Enter')x(i.value)};m.querySelector('[data-ok]').onclick=()=>x(i.value)}})}
+const ask=(t,v)=>modal(`<h3>${t}</h3><input value="${esc(v||'')}" autocapitalize="off" spellcheck="false"><div class="btns"><button class="btn" data-v="">Cancel</button><button class="btn p" data-ok>OK</button></div>`);
+const sheet=(t,a)=>modal(`<h3>${esc(t)}</h3>`+a.map((x,i)=>`<button class="act ${x[2]||''}" data-v="${i}">${x[1]}${x[0]}</button>`).join('')).then(v=>v===null?null:a[+v][3]());
+const I=d=>`<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
+const clean=n=>(n||'').trim().replace(/^\/+|\/+$/g,'').replace(/\/+/g,'/');
+
+// actions
+async function newFile(d){
+  const n=clean(await ask('New file',d?d+'/':''));if(!n)return;
+  if(S.files[n])return toast('File already exists');
+  S.files[n]={c:/\.html?$/.test(n)?'<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="utf-8">\n  <title>New page</title>\n</head>\n<body>\n  \n</body>\n</html>':''};
+  for(let x=dir(n);x;x=dir(x))open.add(x);cur=n;save();render();edit();tab('editor')}
+async function newDir(d){
+  const n=clean(await ask('New folder',d?d+'/':''));if(!n)return;
+  if(!S.folders.includes(n))S.folders.push(n);for(let x=n;x;x=dir(x))open.add(x);save();render()}
+async function rename(p,isDir){
+  const n=clean(await ask('Rename',p));if(!n||n===p)return;
+  if(isDir){const mv=k=>n+k.slice(p.length);
+    for(const k of Object.keys(S.files))if(k.startsWith(p+'/')){S.files[mv(k)]=S.files[k];delete S.files[k]}
+    S.folders=S.folders.map(f=>f===p||f.startsWith(p+'/')?mv(f):f);if(!S.folders.includes(n))S.folders.push(n);
+    if(S.entry.startsWith(p+'/'))S.entry=mv(S.entry);if(cur&&cur.startsWith(p+'/'))cur=mv(cur);open.add(n)}
+  else{if(S.files[n])return toast('Name already used');S.files[n]=S.files[p];delete S.files[p];if(S.entry===p)S.entry=n;if(cur===p)cur=n}
+  save();render();edit()}
+async function del(p,isDir){
+  const v=await modal(`<h3>Delete ${esc(p)}?</h3><p style="color:var(--mut);margin:0 0 14px">${isDir?'Everything inside will be removed.':'This cannot be undone.'}</p><div class="btns"><button class="btn" data-v="">Cancel</button><button class="btn d" data-v="1">Delete</button></div>`);
+  if(!v)return;
+  if(isDir){Object.keys(S.files).forEach(k=>{if(k.startsWith(p+'/'))delete S.files[k]});S.folders=S.folders.filter(f=>f!==p&&!f.startsWith(p+'/'))}else delete S.files[p];
+  if(cur&&(cur===p||cur.startsWith(p+'/')))cur=null;save();render();edit()}
+function actions(p,isDir){
+  const a=[['Rename',I('<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'),'',()=>rename(p,isDir)]];
+  if(isDir){a.unshift(['New folder here',I('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 10v6M9 13h6"/>'),'',()=>newDir(p)]);a.unshift(['New file here',I('<path d="M12 5v14M5 12h14"/>'),'',()=>newFile(p)])}
+  else if(/\.html?$/.test(p))a.unshift(['Set as entry',I('<path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/>'),'',()=>{S.entry=p;save();render();toast('Entry set to '+p)}]);
+  a.unshift(isDir?['Export folder',I(DL),'',()=>exportSheet(p)]:['Download file',I(DL),'',()=>dl(new Blob([bytes(S.files[p])],{type:mime(p)}),base(p))]);
+  a.push(['Delete',I('<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'),'d',()=>del(p,isDir)]);
+  sheet(base(p),a)}
+$('#bNew').onclick=()=>newFile('');$('#bDir').onclick=()=>newDir('');
+$('#bUp').onclick=()=>sheet('Import',[['Files',I('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/>'),'',()=>$('#inF').click()],['Folder',I('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),'',()=>$('#inD').click()],['Archive or backup (.zip .tar .tar.gz .json)',I('<path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/>'),'',()=>$('#inA').click()]]);
+
+
+// export
+const DL='<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>';
+const bytes=f=>{if(!f.bin)return new TextEncoder().encode(f.c);const b=atob(f.c.split(',')[1]||''),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u};
+function dl(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+const cs=async(fmt,d)=>new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(new CompressionStream(fmt))).arrayBuffer());
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=d=>{let c=-1;for(let i=0;i<d.length;i++)c=CRC[(c^d[i])&255]^(c>>>8);return(c^-1)>>>0};
+async function mkZip(es){
+  const enc=new TextEncoder(),parts=[],cd=[],dt=new Date();let off=0;
+  const time=dt.getHours()<<11|dt.getMinutes()<<5|dt.getSeconds()>>1,date=(dt.getFullYear()-1980)<<9|(dt.getMonth()+1)<<5|dt.getDate();
+  for(const e of es){
+    const nm=enc.encode(e.name),raw=e.data,c=crc32(raw);let comp=raw,m=0;
+    if(window.CompressionStream&&raw.length){try{const z=await cs('deflate-raw',raw);if(z.length<raw.length){comp=z;m=8}}catch(_){}}
+    const h=new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x800,true);h.setUint16(8,m,true);h.setUint16(10,time,true);h.setUint16(12,date,true);h.setUint32(14,c,true);h.setUint32(18,comp.length,true);h.setUint32(22,raw.length,true);h.setUint16(26,nm.length,true);
+    const k=new DataView(new ArrayBuffer(46));
+    k.setUint32(0,0x02014b50,true);k.setUint16(4,20,true);k.setUint16(6,20,true);k.setUint16(8,0x800,true);k.setUint16(10,m,true);k.setUint16(12,time,true);k.setUint16(14,date,true);k.setUint32(16,c,true);k.setUint32(20,comp.length,true);k.setUint32(24,raw.length,true);k.setUint16(28,nm.length,true);k.setUint32(42,off,true);
+    parts.push(h.buffer,nm,comp);cd.push(k.buffer,nm);off+=30+nm.length+comp.length}
+  const size=cd.reduce((a,b)=>a+b.byteLength,0),end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,es.length,true);end.setUint16(10,es.length,true);end.setUint32(12,size,true);end.setUint32(16,off,true);
+  return new Blob([...parts,...cd,end.buffer],{type:'application/zip'})}
+function mkTar(es){
+  const enc=new TextEncoder(),parts=[],oct=(n,l)=>n.toString(8).padStart(l-1,'0')+'\0';
+  for(const e of es){
+    const h=new Uint8Array(512),put=(s,o)=>h.set(enc.encode(s).slice(0,100),o);
+    put(e.name,0);put('0000644\0',100);put('0000000\0',108);put('0000000\0',116);put(oct(e.data.length,12),124);put(oct(Math.floor(Date.now()/1000),12),136);
+    put('        ',148);put('0',156);put('ustar\0',257);put('00',263);
+    let s=0;for(const b of h)s+=b;put(oct(s,7)+' ',148);
+    parts.push(h,e.data,new Uint8Array((512-e.data.length%512)%512))}
+  parts.push(new Uint8Array(1024));return new Blob(parts,{type:'application/x-tar'})}
+async function exportAs(kind,prefix){
+  const es=Object.entries(S.files).filter(([p])=>!prefix||p.startsWith(prefix+'/')).map(([p,f])=>({name:prefix?base(prefix)+p.slice(prefix.length):p,data:bytes(f)}));
+  if(!es.length)return toast('Nothing to export');
+  const n=prefix?base(prefix):'localhost-vfs';
+  try{
+    if(kind==='zip')dl(await mkZip(es),n+'.zip');
+    else if(kind==='tar')dl(mkTar(es),n+'.tar');
+    else if(kind==='tgz')dl(new Blob([await cs('gzip',new Uint8Array(await mkTar(es).arrayBuffer()))],{type:'application/gzip'}),n+'.tar.gz');
+    else dl(new Blob([JSON.stringify({entry:S.entry,files:Object.fromEntries(Object.entries(S.files).filter(([p])=>!prefix||p.startsWith(prefix+'/')))},null,2)],{type:'application/json'}),n+'-backup.json');
+    toast('Exported '+es.length+' file'+(es.length==1?'':'s'))}
+  catch(e){toast('This browser cannot create that format')}}
+const exportSheet=p=>sheet(p?'Export '+base(p):'Export project',[
+  ['ZIP archive (.zip)',I(DL),'',()=>exportAs('zip',p)],
+  ['TAR archive (.tar)',I(DL),'',()=>exportAs('tar',p)],
+  ['Compressed TAR (.tar.gz)',I(DL),'',()=>exportAs('tgz',p)],
+  ['JSON backup (.json)',I(DL),'',()=>exportAs('json',p)]]);
+$('#bExp').onclick=()=>exportSheet('');
+
+// import archives
+const dec=b=>new TextDecoder().decode(b);
+const ds=async(fmt,d)=>new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream(fmt))).arrayBuffer());
+const toURL=(u,m)=>{let t='';for(let i=0;i<u.length;i+=8192)t+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return`data:${m};base64,${btoa(t)}`};
+async function readZip(u){
+  const v=new DataView(u.buffer,u.byteOffset,u.byteLength);let e=u.length-22;
+  while(e>=0&&v.getUint32(e,true)!==0x06054b50)e--;
+  if(e<0)throw 0;
+  let n=v.getUint16(e+10,true),p=v.getUint32(e+16,true);const out=[];
+  while(n--&&v.getUint32(p,true)===0x02014b50){
+    const m=v.getUint16(p+10,true),csz=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),el=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true);
+    const name=dec(u.subarray(p+46,p+46+nl));p+=46+nl+el+cl;
+    if(name.endsWith('/'))continue;
+    const st=lo+30+v.getUint16(lo+26,true)+v.getUint16(lo+28,true),raw=u.subarray(st,st+csz);
+    out.push({name,data:m===0?raw:await ds('deflate-raw',raw)})}
+  return out}
+function readTar(u){
+  const out=[];let i=0,long='';
+  while(i+512<=u.length){
+    const h=u.subarray(i,i+512);if(!h[0])break;
+    const str=(o,l)=>dec(h.subarray(o,o+l)).split('\0')[0];
+    const name=long||((str(257,5)==='ustar'&&str(345,155)?str(345,155)+'/':'')+str(0,100));long='';
+    const size=parseInt(str(124,12).trim(),8)||0,t=String.fromCharCode(h[156]||48),d=u.subarray(i+512,i+512+size);
+    if(t==='L')long=dec(d).split('\0')[0];else if(t==='0')out.push({name,data:d});
+    i+=512+Math.ceil(size/512)*512}
+  return out}
+async function importArchive(file){
+  let n=0;const put=(k,f)=>{S.files[k]=f;for(let x=dir(k);x;x=dir(x))open.add(x);n++};
+  try{
+    let u=new Uint8Array(await file.arrayBuffer()),es;
+    if(u[0]===0x50&&u[1]===0x4b)es=await readZip(u);
+    else{
+      if(u[0]===0x1f&&u[1]===0x8b)u=await ds('gzip',u);
+      if(dec(u.subarray(257,262))==='ustar')es=readTar(u);
+      else{const j=JSON.parse(dec(u));if(!j||typeof j.files!=='object')throw 0;
+        for(const[p,f]of Object.entries(j.files)){const k=clean(p);if(k&&f&&typeof f.c==='string')put(k,f.bin?{bin:1,c:f.c}:{c:f.c})}
+        if(j.entry&&S.files[j.entry])S.entry=j.entry;es=[]}}
+    for(const e of es){const k=clean(e.name);if(!k||/(^|\/)(__MACOSX|\.DS_Store)(\/|$)/.test(k))continue;
+      put(k,isText({type:'',name:k})?{c:dec(e.data)}:{bin:1,c:toURL(e.data,mime(k))})}
+    save();render();edit();toast(n+' file'+(n==1?'':'s')+' imported')}
+  catch(e){toast('Could not read that archive')}}
+$('#inA').onchange=async e=>{for(const f of e.target.files)await importArchive(f);e.target.value=''};
+
+// import
+const isText=f=>/^(text\/|application\/(json|javascript|xml))/.test(f.type)||/\.(html?|css|m?js|json|svg|md|txt|xml|csv|tsx?|jsx|ya?ml)$/i.test(f.name);
+async function addFile(f,path){
+  path=clean(path||f.name);
+  S.files[path]=isText(f)?{c:await f.text()}:{bin:1,c:await new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result);x.readAsDataURL(f)})};
+  for(let x=dir(path);x;x=dir(x))open.add(x)}
+async function addList(l){let n=0;for(const f of l){await addFile(f,f.webkitRelativePath);n++}save();render();toast(n+' file'+(n==1?'':'s')+' added')}
+$('#inF').onchange=async e=>{await addList([...e.target.files]);e.target.value=''};
+$('#inD').onchange=async e=>{await addList([...e.target.files]);e.target.value=''};
+const fp=$('#files');
+['dragenter','dragover'].forEach(v=>fp.addEventListener(v,e=>{e.preventDefault();fp.classList.add('drag')}));
+['dragleave','drop'].forEach(v=>fp.addEventListener(v,e=>{e.preventDefault();fp.classList.remove('drag')}));
+async function walk(en){
+  if(en.isFile)return new Promise(r=>en.file(async f=>{await addFile(f,en.fullPath);r()},r));
+  const rd=en.createReader();let all=[];
+  for(;;){const b=await new Promise(r=>rd.readEntries(r,()=>r([])));if(!b.length)break;all=all.concat(b)}
+  if(!all.length)S.folders.push(clean(en.fullPath));
+  await Promise.all(all.map(walk))}
+fp.addEventListener('drop',async e=>{
+  const en=[...e.dataTransfer.items].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+  if(en.length)await Promise.all(en.map(walk));else for(const f of e.dataTransfer.files)await addFile(f);
+  save();render();toast('Import complete')});
+
+// server / preview
+function shim(P,V){
+  const N=(b,u)=>{u=u.split(/[?#]/)[0];const a=u[0]==='/'?[]:b.split('/').slice(0,-1);for(const s of u.split('/')){if(s==='..')a.pop();else if(s&&s!=='.')a.push(s)}return a.join('/')};
+  const F=window.fetch;
+  window.fetch=function(u){const s=String(u),k=N(P,s);if(k in V)return Promise.resolve(new Response(V[k],{status:200}));
+    if(/^(https?:|\/\/)/.test(s)&&F)return F.apply(this,arguments);return Promise.resolve(new Response('Not found in VFS: '+k,{status:404}))};
+  document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a[href]');if(!a)return;const h=a.getAttribute('href');
+    if(/^(https?:|\/\/|#|mailto:|tel:|javascript:)/.test(h))return;e.preventDefault();parent.postMessage({vfs:N(P,h)},'*')});
+}
+function build(path){
+  const f=S.files[path],e404=m=>`<body style="font:16px system-ui;background:#0f1729;color:#e2e8f0;padding:28px"><h2>404</h2><p>${esc(m)}</p>`;
+  if(!f)return e404(path+' was not found in the VFS.');
+  if(!/^(html?)$/.test(ext(path))){
+    if(f.bin||ext(path)==='svg')return`<body style="margin:0;display:grid;place-items:center;min-height:100vh"><img src="${uri(path)}" style="max-width:100%">`;
+    return`<pre style="white-space:pre-wrap;font:14px ui-monospace,monospace;padding:16px">${esc(f.c)}</pre>`}
+  const doc=new DOMParser().parseFromString(f.c,'text/html');
+  const res=u=>{if(!u||/^(https?:|data:|blob:|\/\/|#|mailto:)/.test(u))return null;const p=resolve(path,u);return S.files[p]?p:null};
+  doc.querySelectorAll('link[rel~=stylesheet][href]').forEach(l=>{const p=res(l.getAttribute('href'));if(p){const s=doc.createElement('style');s.textContent=S.files[p].c;l.replaceWith(s)}});
+  doc.querySelectorAll('script[src]').forEach(s=>{const p=res(s.getAttribute('src'));if(p){const n=doc.createElement('script');if(s.type)n.type=s.type;n.textContent=S.files[p].c.replace(/<\/script/gi,'<\\/script');s.replaceWith(n)}});
+  doc.querySelectorAll('[src]:not(script)').forEach(el=>{const p=res(el.getAttribute('src'));if(p)el.setAttribute('src',uri(p))});
+  const V={};for(const k in S.files)if(!S.files[k].bin)V[k]=S.files[k].c;
+  const j=doc.createElement('script');
+  j.textContent=`(${shim})(${JSON.stringify(path)},${JSON.stringify(V).replace(/</g,'\\u003c')})`;
+  doc.head.prepend(j);
+  return'<!DOCTYPE html>'+doc.documentElement.outerHTML}
+function load(path){$('#pv').srcdoc=build(path);$('#addr').textContent='localhost/'+path}
+function run(path,push=true){
+  if(!path&&path!=='')return toast('Set an HTML file as entry first');
+  if(push){hist=hist.slice(0,hi+1);hist.push(path);hi=hist.length-1}
+  load(path);tab('preview')}
+$('#run').onclick=()=>{hist=[];hi=-1;run(S.entry)};
+$('#pBack').onclick=()=>{if(hi>0){hi--;load(hist[hi])}};
+$('#pReload').onclick=()=>hist[hi]!==undefined&&load(hist[hi]);
+addEventListener('message',e=>{if(e.source===$('#pv').contentWindow&&e.data&&typeof e.data.vfs==='string')run(e.data.vfs)});
+
+// tabs
+function tab(t){document.body.dataset.tab=t;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t))}
+$('#tabs').onclick=e=>{const t=e.target.dataset.t;if(t)tab(t)};
+addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();toast('Saved')}});
+render();edit();
+</script>
+</body>
+</html>
